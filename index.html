@@ -457,13 +457,21 @@ function makePrompt(numQ) {
   const pairs = Array.from({length: numQ}, (_, j) => `"P${j+1}":"<A|B|C|D|E>"`).join(', ');
   return `Analiza esta imagen de un examen tipo test escaneado.
 
+FORMATO DEL EXAMEN — MUY IMPORTANTE:
+El alumno ha tachado (cruzado con trazo, X o línea) las 4 opciones INCORRECTAS de cada pregunta.
+La respuesta del alumno es la ÚNICA opción que NO está tachada en cada pregunta.
+
+Proceso para cada pregunta P1 hasta P${numQ}:
+1. Observa las 5 opciones (A, B, C, D, E).
+2. Cuatro de ellas tendrán algún tachón, raya o marca encima.
+3. Una sola permanece limpia, sin ninguna marca — esa es la respuesta del alumno.
+4. Devuelve únicamente la letra de esa opción limpia.
+
 Devuelve ÚNICAMENTE este JSON (sin markdown, sin texto extra):
 {"codigo":"<código junto a CÓDIGO:>","estudiante":"<nombre junto a Estudiante:>","respuestas":{${pairs}}}
 
-Reglas:
-• La respuesta marcada es el círculo relleno/más oscuro de cada pregunta.
-• Si no puedes determinar una respuesta con claridad, usa "?".
-• Si la imagen no contiene un examen tipo test, devuelve exactamente: {"error":"no_exam"}`;
+Si hay ambigüedad en una pregunta (p. ej. parece que hay dos sin tachar), usa "?".
+Si la imagen no contiene un examen tipo test, devuelve: {"error":"no_exam"}`;
 }
 
 async function callGemini(b64, key, model, numQ) {
