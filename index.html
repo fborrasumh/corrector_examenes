@@ -244,7 +244,7 @@ tr:hover td{background:var(--surf2)}
     <div class="h-icon">📋</div>
     <span class="h-title">Corrector de Exámenes</span>
   </div>
-  <span class="h-pill">Gemini Vision · GitHub Pages</span>
+  <span class="h-pill">GPT-4o-mini · GitHub Pages</span>
 </header>
 
 <main>
@@ -258,8 +258,8 @@ tr:hover td{background:var(--surf2)}
     <div class="card-bd">
       <div class="g3">
         <div class="fld">
-          <label>Google Gemini API Key</label>
-          <input type="password" id="apiKey" placeholder="AIzaSy…" autocomplete="off" spellcheck="false">
+          <label>OpenAI API Key</label>
+          <input type="password" id="apiKey" placeholder="sk-…" autocomplete="off" spellcheck="false">
         </div>
         <div class="fld">
           <label>Preguntas por examen</label>
@@ -267,27 +267,26 @@ tr:hover td{background:var(--surf2)}
         </div>
         <div class="fld">
           <label>Pausa entre páginas (s)</label>
-          <input type="number" id="delayS" value="4" min="1" max="120" step="0.5">
-          <span class="hint">Tier gratuito → mín. 4 s</span>
+          <input type="number" id="delayS" value="1" min="0.5" max="30" step="0.5">
+          <span class="hint">Con OpenAI puedes bajar a 1 s</span>
         </div>
       </div>
       <div class="fld" style="margin-top:.85rem">
         <label>Modelo (editable)</label>
-        <input type="text" id="model" list="modelList" value="gemini-2.0-flash" spellcheck="false">
+        <input type="text" id="model" list="modelList" value="gpt-4o-mini" spellcheck="false">
         <datalist id="modelList">
-          <option value="gemini-2.0-flash">
-          <option value="gemini-2.5-flash-preview-05-20">
-          <option value="gemini-1.5-flash">
-          <option value="gemini-1.5-flash-8b">
-          <option value="gemini-1.5-pro">
+          <option value="gpt-4o-mini">
+          <option value="gpt-4o">
+          <option value="gpt-4.1-mini">
+          <option value="gpt-4.1">
         </datalist>
       </div>
       <div class="alert">
         <span>💡</span>
         <span>
-          API key gratuita en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
-          Con <strong>gemini-2.0-flash</strong> tienes <strong>1 500 llamadas/día y 15 peticiones/min gratuitas</strong>
-          — suficiente para una clase entera sin coste. La key se guarda en tu navegador.
+          API key en <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>.
+          Con <strong>gpt-4o-mini</strong> el coste es <strong>menos de 1 céntimo por clase completa</strong>.
+          La key se guarda en tu navegador.
         </span>
       </div>
     </div>
@@ -369,9 +368,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 /* ── Persist key ────────────────────────────────────────── */
 const $key = document.getElementById('apiKey');
-try { $key.value = localStorage.getItem('exam_gkey') || ''; } catch {}
+try { $key.value = localStorage.getItem('exam_oaikey') || ''; } catch {}
 $key.addEventListener('change', () => {
-  try { localStorage.setItem('exam_gkey', $key.value); } catch {}
+  try { localStorage.setItem('exam_oaikey', $key.value); } catch {}
 });
 
 /* ── State ──────────────────────────────────────────────── */
@@ -394,7 +393,7 @@ fi.addEventListener('change', e => { if (e.target.files[0]) run(e.target.files[0
 /* ── Main ───────────────────────────────────────────────── */
 async function run(file) {
   const key   = $key.value.trim();
-  if (!key) { alert('Introduce primero tu Gemini API key.'); return; }
+  if (!key) { alert('Introduce primero tu OpenAI API key.'); return; }
   if (running) return;
 
   running = true;
@@ -402,7 +401,7 @@ async function run(file) {
 
   const numQ    = Math.max(1, parseInt(document.getElementById('numQ').value) || 10);
   const delayMs = Math.max(500, parseFloat(document.getElementById('delayS').value) * 1000 || 4000);
-  const model   = document.getElementById('model').value.trim() || 'gemini-2.0-flash';
+  const model   = document.getElementById('model').value.trim() || 'gpt-4o-mini';
 
   /* lock UI */
   dz.style.pointerEvents = 'none';
@@ -436,7 +435,7 @@ async function run(file) {
     setJson(`Consultando ${model}…`);
 
     const b64    = cvs.toDataURL('image/jpeg', 0.85).split(',')[1];
-    const parsed = await callGemini(b64, key, model, numQ);
+    const parsed = await callOpenAI(b64, key, model, numQ);
 
     results.push(parsed
       ? { page: i, ok: true,  ...parsed }
@@ -474,19 +473,28 @@ Si hay ambigüedad en una pregunta (p. ej. parece que hay dos marcadas), usa "?"
 Si la imagen no contiene un examen tipo test, devuelve: {"error":"no_exam"}`;
 }
 
-async function callGemini(b64, key, model, numQ) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+async function callOpenAI(b64, key, model, numQ) {
+  const url = 'https://api.openai.com/v1/chat/completions';
   let res, data;
   try {
-    res  = await fetch(url, {
+    res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
       body: JSON.stringify({
-        contents: [{ parts: [
-          { text: makePrompt(numQ) },
-          { inline_data: { mime_type: 'image/jpeg', data: b64 } }
-        ]}],
-        generationConfig: { temperature: 0, response_mime_type: 'application/json' }
+        model,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: makePrompt(numQ) },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'high' } }
+          ]
+        }],
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        max_tokens: 512
       })
     });
     data = await res.json();
@@ -499,13 +507,12 @@ async function callGemini(b64, key, model, numQ) {
     setJson(`❌ Error API (${res.status}):\n${msg}`); return null;
   }
 
-  const txt = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const txt = data.choices?.[0]?.message?.content || '';
   setJson(txt || '(respuesta vacía)');
   if (!txt) return null;
 
   try {
-    const clean = txt.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-    const obj   = JSON.parse(clean);
+    const obj = JSON.parse(txt);
     if (obj.error === 'no_exam') return null;
     return obj;
   } catch {
@@ -538,7 +545,7 @@ function countdown(ms) {
     const tick = () => {
       const rem = end - Date.now();
       if (rem <= 0) { el.textContent = ''; resolve(); return; }
-      el.textContent = `⏱ ${(rem / 1000).toFixed(1)} s — respetando límite del tier gratuito`;
+      el.textContent = `⏱ ${(rem / 1000).toFixed(1)} s — pausa entre páginas`;
       setTimeout(tick, 150);
     };
     tick();
