@@ -272,6 +272,16 @@ tr:hover td{background:var(--surf2)}
         </div>
       </div>
       <div class="fld" style="margin-top:.85rem">
+        <label>Rotación de imagen</label>
+        <select id="rotation">
+          <option value="0">Sin rotación</option>
+          <option value="90" selected>90° horario (vertical → horizontal)</option>
+          <option value="-90">90° antihorario</option>
+          <option value="180">180°</option>
+        </select>
+        <span class="hint">Usa "90° horario" si el PDF está en vertical pero el examen se lee en horizontal</span>
+      </div>
+      <div class="fld" style="margin-top:.85rem">
         <label>Modelo (editable)</label>
         <input type="text" id="model" list="modelList" value="gpt-4o-mini" spellcheck="false">
         <datalist id="modelList">
@@ -431,10 +441,13 @@ async function run(file) {
     cvs.width  = vp.width; cvs.height = vp.height;
     await page.render({ canvasContext: cvs.getContext('2d'), viewport: vp }).promise;
 
-    showThumb(cvs);
     setJson(`Consultando ${model}…`);
 
-    const b64    = cvs.toDataURL('image/jpeg', 0.85).split(',')[1];
+    const rotation = parseInt(document.getElementById('rotation').value) || 0;
+    const finalCvs = rotateCanvas(cvs, rotation);
+    showThumb(finalCvs);
+
+    const b64    = finalCvs.toDataURL('image/jpeg', 0.85).split(',')[1];
     const parsed = await callOpenAI(b64, key, model, numQ);
 
     results.push(parsed
@@ -471,6 +484,20 @@ Devuelve ÚNICAMENTE este JSON (sin markdown, sin texto extra):
 
 Si hay ambigüedad en una pregunta (p. ej. parece que hay dos marcadas), usa "?".
 Si la imagen no contiene un examen tipo test, devuelve: {"error":"no_exam"}`;
+}
+
+function rotateCanvas(src, deg) {
+  if (!deg || deg === 0) return src;
+  const rad = deg * Math.PI / 180;
+  const swap = deg === 90 || deg === -90;
+  const dst = document.createElement('canvas');
+  dst.width  = swap ? src.height : src.width;
+  dst.height = swap ? src.width  : src.height;
+  const ctx = dst.getContext('2d');
+  ctx.translate(dst.width / 2, dst.height / 2);
+  ctx.rotate(rad);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  return dst;
 }
 
 async function callOpenAI(b64, key, model, numQ) {
